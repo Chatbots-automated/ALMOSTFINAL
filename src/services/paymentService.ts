@@ -13,7 +13,12 @@ interface TransactionResponse {
   id: string;
   status: 'pending' | 'completed' | 'failed';
   _links: {
-    payment_methods: string;
+    Pay: {
+      href: string;
+    };
+    self: {
+      href: string;
+    };
   };
 }
 
@@ -73,7 +78,7 @@ export const createTransaction = async ({
           email,
           country: 'LT',
           locale: 'LT',
-          ip: ip // Include the customer's IP address
+          ip: ip
         },
         app_info: {
           module: 'ÉLIDA',
@@ -91,10 +96,33 @@ export const createTransaction = async ({
 
     const data = await response.json();
     console.log("Transaction response:", data);
+    console.log("Checking for payment URL:", data._links?.Pay?.href);
 
-    if (data._links?.payment_methods) {
-      console.log("Found payment URL:", data._links.payment_methods);
-      return data._links.payment_methods;
+    if (data._links?.Pay?.href) {
+      console.log("Found payment API URL:", data._links.Pay.href);
+
+      // Fetch the actual payment URL
+      const paymentResponse = await fetch(data._links.Pay.href, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${encodedCredentials}`
+        }
+      });
+
+      if (!paymentResponse.ok) {
+        throw new Error("Failed to fetch payment page URL.");
+      }
+
+      const paymentData = await paymentResponse.json();
+      console.log("Payment page response:", paymentData);
+      console.log("Actual payment URL:", paymentData.url);
+
+      if (!paymentData.url) {
+        throw new Error("Payment URL is missing in response.");
+      }
+
+      return paymentData.url;
     }
 
     throw new Error("Payment URL missing in response.");
