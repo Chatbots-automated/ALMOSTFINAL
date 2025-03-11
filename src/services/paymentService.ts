@@ -17,6 +17,8 @@ interface TransactionResponse {
   };
 }
 
+const API_URL = 'https://api.maksekeskus.ee/v1/transactions';
+
 export const createTransaction = async ({
   amount,
   reference,
@@ -26,6 +28,10 @@ export const createTransaction = async ({
   notificationUrl
 }: TransactionRequest): Promise<string> => {
   try {
+    // Debug environment variables
+    console.log("Store ID:", import.meta.env.VITE_MAKECOMMERCE_STORE_ID);
+    console.log("Secret Key:", import.meta.env.VITE_MAKECOMMERCE_SECRET_KEY);
+
     console.log("Creating transaction with MakeCommerce API:", {
       amount,
       reference,
@@ -35,11 +41,15 @@ export const createTransaction = async ({
       notificationUrl
     });
 
-    const response = await fetch('https://api.test.maksekeskus.ee/v1/transactions', {
+    // Properly encode credentials
+    const credentials = `${import.meta.env.VITE_MAKECOMMERCE_STORE_ID}:${import.meta.env.VITE_MAKECOMMERCE_SECRET_KEY}`;
+    const encodedCredentials = btoa(unescape(encodeURIComponent(credentials)));
+
+    const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Basic ' + btoa(`${process.env.VITE_MAKECOMMERCE_STORE_ID}:${process.env.VITE_MAKECOMMERCE_SECRET_KEY}`)
+        'Authorization': `Basic ${encodedCredentials}`
       },
       body: JSON.stringify({
         transaction: {
@@ -92,11 +102,14 @@ export const getTransactionStatus = async (transactionId: string): Promise<'pend
   try {
     console.log("Fetching transaction status for ID:", transactionId);
 
-    const response = await fetch(`https://api.test.maksekeskus.ee/v1/transactions/${transactionId}`, {
+    const credentials = `${import.meta.env.VITE_MAKECOMMERCE_STORE_ID}:${import.meta.env.VITE_MAKECOMMERCE_SECRET_KEY}`;
+    const encodedCredentials = btoa(unescape(encodeURIComponent(credentials)));
+
+    const response = await fetch(`${API_URL}/${transactionId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Basic ' + btoa(`${process.env.VITE_MAKECOMMERCE_STORE_ID}:${process.env.VITE_MAKECOMMERCE_SECRET_KEY}`)
+        'Authorization': `Basic ${encodedCredentials}`
       },
     });
 
@@ -118,11 +131,14 @@ export const verifyPayment = async (transactionId: string): Promise<boolean> => 
   try {
     console.log("Verifying payment:", transactionId);
 
-    const response = await fetch(`https://api.test.maksekeskus.ee/v1/transactions/${transactionId}`, {
+    const credentials = `${import.meta.env.VITE_MAKECOMMERCE_STORE_ID}:${import.meta.env.VITE_MAKECOMMERCE_SECRET_KEY}`;
+    const encodedCredentials = btoa(unescape(encodeURIComponent(credentials)));
+
+    const response = await fetch(`${API_URL}/${transactionId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Basic ' + btoa(`${process.env.VITE_MAKECOMMERCE_STORE_ID}:${process.env.VITE_MAKECOMMERCE_SECRET_KEY}`)
+        'Authorization': `Basic ${encodedCredentials}`
       },
     });
 
