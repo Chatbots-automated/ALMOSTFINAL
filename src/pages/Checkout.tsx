@@ -1,6 +1,23 @@
 import React, { useState } from 'react';
-import { useCart } from '../context/CartContext';
-import { Shield, Truck, MapPin, Phone, Mail, User, CreditCard, Package, ArrowLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { useStore } from '../store/useStore';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { createTransaction } from '../services/paymentService';
+import { 
+  CreditCard, 
+  Truck, 
+  Package, 
+  MapPin, 
+  Phone, 
+  Mail, 
+  User, 
+  Shield, 
+  Loader2, 
+  ArrowLeft, 
+  ChevronRight,
+  Info
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface CheckoutForm {
@@ -9,273 +26,335 @@ interface CheckoutForm {
   lastName: string;
   address: string;
   city: string;
-  country: string;
   postalCode: string;
   phone: string;
 }
 
 export default function Checkout() {
-  const { state } = useCart();
+  const navigate = useNavigate();
+  const { cart, getCartTotal, clearCart } = useStore();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [form, setForm] = useState<CheckoutForm>({
-    email: '',
+    email: user?.email || '',
     firstName: '',
     lastName: '',
     address: '',
     city: '',
-    country: '',
     postalCode: '',
-    phone: '',
+    phone: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle checkout logic here
-    console.log('Checkout form submitted:', form);
-  };
+  if (cart.length === 0) {
+    return (
+      <div className="min-h-screen bg-elida-cream pt-24">
+        <div className="max-w-7xl mx-auto px-4 py-16">
+          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+            <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h2 className="text-2xl font-playfair text-gray-900 mb-4">Jūsų krepšelis tuščias</h2>
+            <p className="text-gray-600 mb-8">Pridėkite prekių į krepšelį, kad galėtumėte tęsti</p>
+            <Link
+              to="/products"
+              className="inline-flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-elida-gold to-elida-accent text-white rounded-full font-medium hover:shadow-lg transition-all duration-300"
+            >
+              Peržiūrėti prekes
+              <ChevronRight className="h-5 w-5" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
       ...form,
-      [e.target.name]: e.target.value,
+      [e.target.name]: e.target.value
     });
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const orderRef = `ORD-${Date.now()}`;
+      const baseUrl = window.location.origin;
+
+      const paymentUrl = await createTransaction({
+        amount: getCartTotal(),
+        reference: orderRef,
+        email: form.email,
+        returnUrl: `${baseUrl}/payment-success`,
+        cancelUrl: `${baseUrl}/payment-failed`,
+        notificationUrl: `${baseUrl}/api/payment-notification`
+      });
+
+      window.location.href = paymentUrl;
+    } catch (err) {
+      console.error('Checkout error:', err);
+      setError('Įvyko klaida apdorojant užsakymą. Prašome bandyti dar kartą.');
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-olive-50 bg-camo-pattern pt-24">
+    <div className="min-h-screen bg-elida-cream pt-24">
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <Link to="/" className="inline-flex items-center gap-2 text-tactical-green hover:text-tactical-brown transition-colors mb-6">
+        <Link
+          to="/products"
+          className="inline-flex items-center gap-2 text-gray-600 hover:text-elida-gold mb-8 transition-colors"
+        >
           <ArrowLeft className="h-4 w-4" />
-          Return to Base
+          Grįžti į parduotuvę
         </Link>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Checkout Form */}
-          <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-tactical-sand/20 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-tactical-green/10 rounded-lg">
-                <Package className="h-6 w-6 text-tactical-green" />
+          <div className="bg-white rounded-2xl shadow-lg p-8">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="p-2 bg-elida-gold/10 rounded-lg">
+                <Shield className="h-6 w-6 text-elida-gold" />
               </div>
-              <h2 className="text-2xl font-bold text-tactical-green">Deployment Details</h2>
+              <h2 className="text-2xl font-playfair text-gray-900">
+                Pristatymo informacija
+              </h2>
             </div>
+
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 rounded-xl text-red-600 text-sm flex items-center gap-2">
+                <Info className="h-4 w-4 flex-shrink-0" />
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-tactical-brown flex items-center gap-2">
-                  <Mail className="h-5 w-5" />
-                  Contact Information
+                <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-elida-gold" />
+                  Kontaktinė informacija
                 </h3>
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-tactical-green mb-1">
-                    Email *
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                    El. paštas *
                   </label>
                   <input
                     type="email"
                     id="email"
                     name="email"
-                    required
                     value={form.email}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 rounded-lg border border-tactical-sand/20 focus:ring-2 focus:ring-tactical-green focus:border-transparent bg-white/50"
-                    placeholder="your@email.com"
+                    required
+                    className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 
+                             focus:ring-2 focus:ring-elida-gold focus:border-transparent"
                   />
                 </div>
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-tactical-brown flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Personal Details
+                <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                  <User className="h-5 w-5 text-elida-gold" />
+                  Asmeninė informacija
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="firstName" className="block text-sm font-medium text-tactical-green mb-1">
-                      First Name *
+                    <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                      Vardas *
                     </label>
                     <input
                       type="text"
                       id="firstName"
                       name="firstName"
-                      required
                       value={form.firstName}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 rounded-lg border border-tactical-sand/20 focus:ring-2 focus:ring-tactical-green focus:border-transparent bg-white/50"
+                      required
+                      className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 
+                               focus:ring-2 focus:ring-elida-gold focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label htmlFor="lastName" className="block text-sm font-medium text-tactical-green mb-1">
-                      Last Name *
+                    <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                      Pavardė *
                     </label>
                     <input
                       type="text"
                       id="lastName"
                       name="lastName"
-                      required
                       value={form.lastName}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 rounded-lg border border-tactical-sand/20 focus:ring-2 focus:ring-tactical-green focus:border-transparent bg-white/50"
+                      required
+                      className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 
+                               focus:ring-2 focus:ring-elida-gold focus:border-transparent"
                     />
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-tactical-brown flex items-center gap-2">
-                  <MapPin className="h-5 w-5" />
-                  Deployment Location
+                <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-elida-gold" />
+                  Pristatymo adresas
                 </h3>
                 <div>
-                  <label htmlFor="address" className="block text-sm font-medium text-tactical-green mb-1">
-                    Address *
+                  <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
+                    Adresas *
                   </label>
                   <input
                     type="text"
                     id="address"
                     name="address"
-                    required
                     value={form.address}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 rounded-lg border border-tactical-sand/20 focus:ring-2 focus:ring-tactical-green focus:border-transparent bg-white/50"
+                    required
+                    className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 
+                             focus:ring-2 focus:ring-elida-gold focus:border-transparent"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="city" className="block text-sm font-medium text-tactical-green mb-1">
-                      City *
+                    <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
+                      Miestas *
                     </label>
                     <input
                       type="text"
                       id="city"
                       name="city"
-                      required
                       value={form.city}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 rounded-lg border border-tactical-sand/20 focus:ring-2 focus:ring-tactical-green focus:border-transparent bg-white/50"
+                      required
+                      className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 
+                               focus:ring-2 focus:ring-elida-gold focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label htmlFor="postalCode" className="block text-sm font-medium text-tactical-green mb-1">
-                      Postal Code *
+                    <label htmlFor="postalCode" className="block text-sm font-medium text-gray-700 mb-1">
+                      Pašto kodas *
                     </label>
                     <input
                       type="text"
                       id="postalCode"
                       name="postalCode"
-                      required
                       value={form.postalCode}
                       onChange={handleChange}
-                      className="w-full px-4 py-2 rounded-lg border border-tactical-sand/20 focus:ring-2 focus:ring-tactical-green focus:border-transparent bg-white/50"
+                      required
+                      className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 
+                               focus:ring-2 focus:ring-elida-gold focus:border-transparent"
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label htmlFor="country" className="block text-sm font-medium text-tactical-green mb-1">
-                    Country *
-                  </label>
-                  <input
-                    type="text"
-                    id="country"
-                    name="country"
-                    required
-                    value={form.country}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 rounded-lg border border-tactical-sand/20 focus:ring-2 focus:ring-tactical-green focus:border-transparent bg-white/50"
-                  />
                 </div>
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-tactical-brown flex items-center gap-2">
-                  <Phone className="h-5 w-5" />
-                  Contact Number
+                <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+                  <Phone className="h-5 w-5 text-elida-gold" />
+                  Kontaktinis numeris
                 </h3>
                 <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-tactical-green mb-1">
-                    Phone *
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                    Telefonas *
                   </label>
                   <input
                     type="tel"
                     id="phone"
                     name="phone"
-                    required
                     value={form.phone}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 rounded-lg border border-tactical-sand/20 focus:ring-2 focus:ring-tactical-green focus:border-transparent bg-white/50"
+                    required
+                    className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 
+                             focus:ring-2 focus:ring-elida-gold focus:border-transparent"
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-tactical-green text-tactical-sand py-4 rounded-lg hover:bg-olive-800 transition-colors mt-8 flex items-center justify-center gap-2 font-semibold shadow-md"
+                disabled={loading}
+                className="w-full py-4 bg-gradient-to-r from-elida-gold to-elida-accent text-white rounded-xl 
+                         font-medium hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2
+                         disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <CreditCard className="h-5 w-5" />
-                Proceed to Payment
+                {loading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Apdorojama...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="h-5 w-5" />
+                    Pereiti prie apmokėjimo
+                  </>
+                )}
               </button>
             </form>
           </div>
 
           {/* Order Summary */}
           <div className="space-y-6">
-            <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-tactical-sand/20 p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-tactical-green/10 rounded-lg">
-                  <Shield className="h-6 w-6 text-tactical-green" />
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="p-2 bg-elida-gold/10 rounded-lg">
+                  <Package className="h-6 w-6 text-elida-gold" />
                 </div>
-                <h2 className="text-2xl font-bold text-tactical-green">Mission Summary</h2>
+                <h2 className="text-2xl font-playfair text-gray-900">
+                  Užsakymo santrauka
+                </h2>
               </div>
 
               <div className="space-y-4">
-                {state.items.map((item) => (
-                  <div key={item.id} className="flex gap-4 p-4 bg-olive-50/50 rounded-lg border border-tactical-sand/10">
+                {cart.map((item) => (
+                  <div key={item.id} className="flex gap-4 p-4 bg-gray-50 rounded-xl">
                     <img
-                      src={item.image}
+                      src={item.imageurl}
                       alt={item.name}
                       className="w-20 h-20 object-cover rounded-lg"
                     />
                     <div className="flex-1">
-                      <h3 className="font-medium text-tactical-green">{item.name}</h3>
+                      <h3 className="font-medium text-gray-900">{item.name}</h3>
                       {item.selectedSize && (
-                        <p className="text-sm text-tactical-brown">Size: {item.selectedSize}</p>
+                        <p className="text-sm text-gray-600">Dydis: {item.selectedSize}</p>
                       )}
                       {item.selectedColor && (
-                        <p className="text-sm text-tactical-brown">Color: {item.selectedColor}</p>
+                        <p className="text-sm text-gray-600">Spalva: {item.selectedColor}</p>
                       )}
                       <div className="flex justify-between mt-2">
-                        <p className="text-sm text-tactical-brown">Qty: {item.quantity}</p>
-                        <p className="font-medium text-tactical-green">€{(item.price * item.quantity).toFixed(2)}</p>
+                        <p className="text-sm text-gray-600">Kiekis: {item.quantity}</p>
+                        <p className="font-medium text-gray-900">€{(item.price * item.quantity).toFixed(2)}</p>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 pt-6 border-t border-tactical-sand/20">
+              <div className="mt-6 pt-6 border-t border-gray-100">
                 <div className="space-y-2">
-                  <div className="flex justify-between text-tactical-brown">
-                    <span>Subtotal</span>
-                    <span>€{state.total.toFixed(2)}</span>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Tarpinė suma</span>
+                    <span>€{getCartTotal().toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-tactical-brown">
-                    <span>Shipping</span>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Pristatymas</span>
                     <span className="flex items-center gap-1">
                       <Truck className="h-4 w-4" />
-                      Free
+                      Nemokamas
                     </span>
                   </div>
-                  <div className="flex justify-between text-lg font-bold text-tactical-green pt-2">
-                    <span>Total</span>
-                    <span>€{state.total.toFixed(2)}</span>
+                  <div className="flex justify-between text-xl font-playfair text-gray-900 pt-2">
+                    <span>Viso</span>
+                    <span>€{getCartTotal().toFixed(2)}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-olive-100/50 backdrop-blur-sm rounded-lg p-4 border border-tactical-sand/20">
-              <div className="flex items-center gap-3 text-tactical-brown">
-                <Truck className="h-5 w-5 flex-shrink-0" />
-                <p className="text-sm">Free shipping on all orders. Estimated delivery time: 3-5 business days</p>
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+              <div className="flex items-center gap-3 text-gray-600">
+                <Truck className="h-5 w-5 flex-shrink-0 text-elida-gold" />
+                <p className="text-sm">
+                  Nemokamas pristatymas visoje Lietuvoje. Pristatymo laikas: 2-4 darbo dienos
+                </p>
               </div>
             </div>
           </div>

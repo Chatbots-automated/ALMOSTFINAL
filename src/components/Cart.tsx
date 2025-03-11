@@ -29,8 +29,8 @@ export default function Cart({ isOpen, onClose }: CartProps) {
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <ShoppingBag className="h-6 w-6 text-tactical-green" />
-              <h2 className="text-xl font-bold text-gray-900">Shopping Cart</h2>
+              <ShoppingBag className="h-6 w-6 text-elida-gold" />
+              <h2 className="text-xl font-bold text-gray-900">Krepšelis</h2>
             </div>
             <div className="flex items-center gap-4">
               {cart.length > 0 && (
@@ -39,7 +39,7 @@ export default function Cart({ isOpen, onClose }: CartProps) {
                   className="flex items-center gap-2 text-sm text-red-600 hover:text-red-700"
                 >
                   <Trash2 className="h-4 w-4" />
-                  Clear
+                  Išvalyti
                 </button>
               )}
               <button
@@ -56,19 +56,27 @@ export default function Cart({ isOpen, onClose }: CartProps) {
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
               <ShoppingBag className="h-16 w-16 text-gray-300 mb-4" />
-              <p className="text-gray-500 text-lg mb-2">Your cart is empty</p>
-              <p className="text-gray-400 text-sm">Add some items to get started</p>
+              <p className="text-gray-500 text-lg mb-2">Jūsų krepšelis tuščias</p>
+              <p className="text-gray-400 text-sm">Pridėkite prekių, kad galėtumėte pradėti</p>
             </div>
           ) : (
             <div className="p-6 space-y-6">
               {cart.map((item) => (
                 <div key={`${item.id}-${item.selectedSize}-${item.selectedColor}`} 
-                     className="flex gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="w-24 h-24 object-cover rounded-lg"
-                  />
+                     className="flex gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                >
+                  <div className="w-24 h-24 rounded-lg overflow-hidden bg-white">
+                    <img
+                      src={item.imageurl}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/elida-logo.svg';
+                        target.className = 'w-full h-full object-contain p-2';
+                      }}
+                    />
+                  </div>
                   <div className="flex-1">
                     <div className="flex justify-between mb-1">
                       <h3 className="font-semibold text-gray-900">{item.name}</h3>
@@ -80,10 +88,10 @@ export default function Cart({ isOpen, onClose }: CartProps) {
                       </button>
                     </div>
                     {item.selectedSize && (
-                      <p className="text-sm text-gray-600">Size: {item.selectedSize}</p>
+                      <p className="text-sm text-gray-600">Dydis: {item.selectedSize}</p>
                     )}
                     {item.selectedColor && (
-                      <p className="text-sm text-gray-600">Color: {item.selectedColor}</p>
+                      <p className="text-sm text-gray-600">Spalva: {item.selectedColor}</p>
                     )}
                     <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center border border-gray-200 rounded-lg bg-white">
@@ -115,23 +123,24 @@ export default function Cart({ isOpen, onClose }: CartProps) {
           <div className="border-t border-gray-100 p-6 bg-white">
             <div className="space-y-4 mb-6">
               <div className="flex justify-between text-sm text-gray-600">
-                <span>Subtotal</span>
+                <span>Tarpinė suma</span>
                 <span>€{getCartTotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm text-gray-600">
-                <span>Shipping</span>
-                <span>Calculated at checkout</span>
+                <span>Pristatymas</span>
+                <span>Apskaičiuojama užsakymo metu</span>
               </div>
               <div className="flex justify-between text-lg font-semibold text-gray-900">
-                <span>Total</span>
+                <span>Viso</span>
                 <span>€{getCartTotal().toFixed(2)}</span>
               </div>
             </div>
             <button
               onClick={handleCheckout}
-              className="w-full bg-tactical-green text-white py-4 rounded-xl font-semibold hover:bg-olive-800 focus:ring-4 focus:ring-olive-500 focus:ring-opacity-50 transition-all duration-300"
+              className="w-full bg-gradient-to-r from-elida-gold to-elida-accent text-white py-4 rounded-xl 
+                       font-semibold hover:shadow-lg focus:ring-4 focus:ring-elida-gold/50 transition-all duration-300"
             >
-              Proceed to Checkout
+              Pereiti prie apmokėjimo
             </button>
           </div>
         )}

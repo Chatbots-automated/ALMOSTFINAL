@@ -1,24 +1,20 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Product } from '../types/product';
-
-interface CartItem extends Product {
-  quantity: number;
-  selectedSize?: string;
-  selectedColor?: string;
-}
+import { CartItem, getCart, addToCart as addToFirestoreCart, removeFromCart as removeFromFirestoreCart, updateCartItemQuantity as updateFirestoreCartItemQuantity, clearCart as clearFirestoreCart } from '../services/cartService';
 
 interface WishlistItem extends Product {}
 
 interface StoreState {
   cart: CartItem[];
   wishlist: WishlistItem[];
-  addToCart: (item: CartItem) => void;
-  removeFromCart: (id: string) => void;
-  updateCartItemQuantity: (id: string, quantity: number) => void;
-  clearCart: () => void;
+  addToCart: (item: CartItem, userId?: string) => void;
+  removeFromCart: (id: string, userId?: string, selectedSize?: string, selectedColor?: string) => void;
+  updateCartItemQuantity: (id: string, quantity: number, userId?: string, selectedSize?: string, selectedColor?: string) => void;
+  clearCart: (userId?: string) => void;
   toggleWishlist: (item: Product) => void;
   getCartTotal: () => number;
+  syncCart: (userId: string) => Promise<void>;
 }
 
 export const useStore = create<StoreState>()(
@@ -27,7 +23,18 @@ export const useStore = create<StoreState>()(
       cart: [],
       wishlist: [],
       
-      addToCart: (item) => {
+      syncCart: async (userId: string) => {
+        if (!userId) return;
+        try {
+          const items = await getCart(userId);
+          set({ cart: items });
+        } catch (error) {
+          console.error('Error syncing cart:', error);
+        }
+      },
+
+      addToCart: async (item, userId) => {
+        // Update local state
         set((state) => {
           const existingItem = state.cart.find(
             (i) => 
@@ -48,21 +55,72 @@ export const useStore = create<StoreState>()(
 
           return { cart: [...state.cart, item] };
         });
+
+        // Update Firestore if userId is provided
+        if (userId) {
+          try {
+            await addToFirestoreCart(userId, item);
+          } catch (error) {
+            console.error('Error adding to Firestore cart:', error);
+          }
+        }
       },
 
-      removeFromCart: (id) =>
+      removeFromCart: async (id, userId, selectedSize, selectedColor) => {
+        // Update local state
         set((state) => ({
-          cart: state.cart.filter((item) => item.id !== id),
-        })),
+          cart: state.cart.filter((item) => 
+            !(item.id === id && 
+              item.selectedSize === selectedSize && 
+              item.selectedColor === selectedColor)
+          ),
+        }));
 
-      updateCartItemQuantity: (id, quantity) =>
+        // Update Firestore if userId is provided
+        if (userId) {
+          try {
+            await removeFromFirestoreCart(userId, id, selectedSize, selectedColor);
+          } catch (error) {
+            console.error('Error removing from Firestore cart:', error);
+          }
+        }
+      },
+
+      updateCartItemQuantity: async (id, quantity, userId, selectedSize, selectedColor) => {
+        // Update local state
         set((state) => ({
           cart: state.cart.map((item) =>
-            item.id === id ? { ...item, quantity } : item
+            item.id === id &&
+            item.selectedSize === selectedSize &&
+            item.selectedColor === selectedColor
+              ? { ...item, quantity }
+              : item
           ),
-        })),
+        }));
 
-      clearCart: () => set({ cart: [] }),
+        // Update Firestore if userId is provided
+        if (userId) {
+          try {
+            await updateFirestoreCartItemQuantity(userId, id, quantity, selectedSize, selectedColor);
+          } catch (error) {
+            console.error('Error updating Firestore cart quantity:', error);
+          }
+        }
+      },
+
+      clearCart: async (userId) => {
+        // Update local state
+        set({ cart: [] });
+
+        // Update Firestore if userId is provided
+        if (userId) {
+          try {
+            await clearFirestoreCart(userId);
+          } catch (error) {
+            console.error('Error clearing Firestore cart:', error);
+          }
+        }
+      },
 
       toggleWishlist: (item) =>
         set((state) => {
@@ -83,7 +141,7 @@ export const useStore = create<StoreState>()(
       },
     }),
     {
-      name: 'tactical-store',
+      name: 'elida-store',
     }
   )
 );

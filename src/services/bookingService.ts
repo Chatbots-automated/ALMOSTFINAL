@@ -1,6 +1,7 @@
 import { db } from '../config/firebase';
 import { collection, addDoc, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { Booking, TimeSlot, BookedTimeSlot } from '../types/booking';
+import { format, addDays } from 'date-fns';
 
 const WEBHOOK_URLS = {
   'standing-1': 'https://hook.eu2.make.com/33lxkyn65qmjhcoq1fufr3ydq13uunqw',
@@ -72,7 +73,27 @@ const isBeforeMinimumBuffer = (timeSlot: string, date: string): boolean => {
 // Function to get the earliest available time after buffer
 export const getEarliestAvailableTime = (): string => {
   const now = new Date();
+  const dayOfWeek = now.getDay();
+  const businessHours = BUSINESS_HOURS[dayOfWeek as keyof typeof BUSINESS_HOURS];
   
+  // Get current time in minutes since midnight
+  const currentHours = now.getHours();
+  const currentMinutes = now.getMinutes();
+  const totalCurrentMinutes = currentHours * 60 + currentMinutes;
+  
+  // Get business hours in minutes
+  const businessStartMinutes = businessHours.start * 60;
+  const businessEndMinutes = businessHours.end * 60;
+
+  // If current time is past business hours or near closing, return next day's opening time
+  if (totalCurrentMinutes >= businessEndMinutes - 30 || // If within 30 minutes of closing or after closing
+      totalCurrentMinutes < businessStartMinutes) {     // If before opening time
+    const tomorrow = addDays(now, 1);
+    const tomorrowDay = tomorrow.getDay();
+    const tomorrowHours = BUSINESS_HOURS[tomorrowDay as keyof typeof BUSINESS_HOURS];
+    return `${tomorrowHours.start.toString().padStart(2, '0')}:00`;
+  }
+
   // Add 30 minutes buffer
   const bufferTime = new Date(now);
   bufferTime.setMinutes(bufferTime.getMinutes() + 30);
@@ -82,8 +103,20 @@ export const getEarliestAvailableTime = (): string => {
   if (remainder > 0) {
     bufferTime.setMinutes(bufferTime.getMinutes() + (15 - remainder));
   }
-  
-  // Format as HH:MM
+
+  // If the buffer time pushes us past business hours, return next day's opening time
+  const bufferHours = bufferTime.getHours();
+  const bufferMinutes = bufferTime.getMinutes();
+  const totalBufferMinutes = bufferHours * 60 + bufferMinutes;
+
+  if (totalBufferMinutes >= businessEndMinutes - 30) {
+    const tomorrow = addDays(now, 1);
+    const tomorrowDay = tomorrow.getDay();
+    const tomorrowHours = BUSINESS_HOURS[tomorrowDay as keyof typeof BUSINESS_HOURS];
+    return `${tomorrowHours.start.toString().padStart(2, '0')}:00`;
+  }
+
+  // Return the buffer time if it's within business hours
   return bufferTime.toLocaleTimeString('en-US', { 
     hour: '2-digit', 
     minute: '2-digit',
@@ -149,9 +182,18 @@ export const fetchAvailableTimeSlots = async (cabinId: string, date: string): Pr
         // Check if this time slot is before the minimum buffer time
         const isTooSoon = isBeforeMinimumBuffer(time, date);
 
+        // Check if the time slot is within business hours
+        const slotDate = new Date(date);
+        const [slotHours, slotMinutes] = time.split(':').map(Number);
+        slotDate.setHours(slotHours, slotMinutes);
+        
+        const isWithinBusinessHours = 
+          slotHours >= start && 
+          (slotHours < end || (slotHours === end && slotMinutes === 0));
+
         timeSlots.push({
           time,
-          available: !isBooked && !isTooSoon
+          available: !isBooked && !isTooSoon && isWithinBusinessHours
         });
       }
     }
@@ -167,7 +209,6 @@ export const createBooking = async (bookingData: Omit<Booking, 'id' | 'createdAt
   try {
     const now = new Date().toISOString();
 
-    // Create the booking document in Firestore
     const bookingRef = await addDoc(collection(db, 'bookings'), {
       ...bookingData,
       createdAt: now,
@@ -175,7 +216,6 @@ export const createBooking = async (bookingData: Omit<Booking, 'id' | 'createdAt
       status: 'confirmed',
     });
 
-    // Update Google Calendar via webhook
     const webhookUrl = WEBHOOK_URLS[bookingData.cabin as keyof typeof WEBHOOK_URLS];
     if (webhookUrl) {
       await fetch(webhookUrl, {
@@ -216,14 +256,12 @@ export const getUserBookings = async (userId: string) => {
 
 export const cancelBooking = async (bookingId: string, cabinId: string) => {
   try {
-    // Update booking status in Firestore
     const bookingRef = doc(db, 'bookings', bookingId);
     await updateDoc(bookingRef, {
       status: 'cancelled',
       updatedAt: new Date().toISOString(),
     });
 
-    // Remove event from Google Calendar via webhook
     const webhookUrl = WEBHOOK_URLS[cabinId as keyof typeof WEBHOOK_URLS];
     if (webhookUrl) {
       await fetch(webhookUrl, {
