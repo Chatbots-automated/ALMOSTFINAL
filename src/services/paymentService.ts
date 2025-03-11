@@ -32,16 +32,21 @@ export const createTransaction = async ({
     console.log("Store ID:", import.meta.env.VITE_MAKECOMMERCE_STORE_ID);
     console.log("Secret Key:", import.meta.env.VITE_MAKECOMMERCE_SECRET_KEY);
 
+    // Fetch user's IP address
+    const ipResponse = await fetch('https://api64.ipify.org?format=json');
+    const { ip } = await ipResponse.json();
+
     console.log("Creating transaction with MakeCommerce API:", {
       amount,
       reference,
       email,
       returnUrl,
       cancelUrl,
-      notificationUrl
+      notificationUrl,
+      ip
     });
 
-    // Properly encode credentials
+    // Properly encode credentials with special character handling
     const credentials = `${import.meta.env.VITE_MAKECOMMERCE_STORE_ID}:${import.meta.env.VITE_MAKECOMMERCE_SECRET_KEY}`;
     const encodedCredentials = btoa(unescape(encodeURIComponent(credentials)));
 
@@ -68,6 +73,7 @@ export const createTransaction = async ({
           email,
           country: 'LT',
           locale: 'LT',
+          ip: ip // Include the customer's IP address
         },
         app_info: {
           module: 'ÉLIDA',
