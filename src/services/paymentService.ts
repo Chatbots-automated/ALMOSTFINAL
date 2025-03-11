@@ -75,6 +75,59 @@ export const createTransaction = async ({
       }),
     });
 
+    // Check content type before processing response
+    const contentType = response.headers.get('content-type');
+    
+    // Handle 202 Accepted response
+    if (response.status === 202) {
+      console.log('Transaction accepted, polling for status...');
+      
+      // Get transaction ID from Location header or response
+      const locationHeader = response.headers.get('Location');
+      const transactionId = locationHeader?.split('/').pop();
+      
+      if (!transactionId) {
+        throw new Error('Transaction ID not found in response');
+      }
+
+      // Start polling for transaction status
+      const maxAttempts = 10;
+      let attempts = 0;
+      
+      while (attempts < maxAttempts) {
+        const status = await getTransactionStatus(transactionId);
+        console.log(`Polling attempt ${attempts + 1}: Status = ${status}`);
+        
+        if (status === 'completed') {
+          return returnUrl;
+        }
+        
+        if (status === 'failed') {
+          throw new Error('Transaction failed');
+        }
+        
+        // Wait 2 seconds before next attempt
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        attempts++;
+      }
+
+      throw new Error('Transaction processing timeout');
+    }
+
+    // Handle text response
+    if (contentType?.includes('text/plain')) {
+      const text = await response.text();
+      console.log('Received text response:', text);
+      
+      if (text.toLowerCase().includes('accepted')) {
+        // If accepted, return the success URL
+        return returnUrl;
+      }
+      
+      throw new Error(`Unexpected text response: ${text}`);
+    }
+
+    // Handle JSON response
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error('Payment API Error:', errorData);
@@ -89,27 +142,7 @@ export const createTransaction = async ({
       throw new Error('Invalid response from payment service');
     }
 
-    // Start polling for transaction status
-    const maxAttempts = 10;
-    let attempts = 0;
-    
-    while (attempts < maxAttempts) {
-      const status = await getTransactionStatus(data.id);
-      
-      if (status === 'completed') {
-        return data._links.payment_methods;
-      }
-      
-      if (status === 'failed') {
-        throw new Error('Transaction failed');
-      }
-      
-      // Wait 2 seconds before next attempt
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      attempts++;
-    }
-
-    // If we reach here, return the payment URL for the pending transaction
+    // Return the payment URL
     return data._links.payment_methods;
   } catch (error) {
     console.error('Payment error:', error);
@@ -132,6 +165,25 @@ export const getTransactionStatus = async (transactionId: string): Promise<'pend
       throw new Error('Failed to fetch transaction status');
     }
 
+    // Check content type
+    const contentType = response.headers.get('content-type');
+    
+    // Handle text response
+    if (contentType?.includes('text/plain')) {
+      const text = await response.text();
+      console.log('Received text status:', text);
+      
+      // Map text responses to status
+      const normalizedText = text.toLowerCase();
+      if (normalizedText.includes('accepted')) return 'pending';
+      if (normalizedText.includes('completed')) return 'completed';
+      if (normalizedText.includes('failed')) return 'failed';
+      
+      // Default to pending if status is unclear
+      return 'pending';
+    }
+
+    // Handle JSON response
     const data = await response.json();
     console.log('Transaction status response:', data);
 
@@ -154,6 +206,17 @@ export const verifyPayment = async (transactionId: string): Promise<boolean> => 
       body: JSON.stringify({ transactionId }),
     });
 
+    // Check content type
+    const contentType = response.headers.get('content-type');
+    
+    // Handle text response
+    if (contentType?.includes('text/plain')) {
+      const text = await response.text();
+      console.log('Received verification text:', text);
+      return text.toLowerCase().includes('completed');
+    }
+
+    // Handle JSON response
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error('Payment verification error:', errorData);
